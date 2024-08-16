@@ -11,40 +11,50 @@ def execute_command(command):
     except subprocess.CalledProcessError as e:
         print(f"Command '{command}' failed with error: {e}")
 
+# Function to calculate the total size of a directory
+def get_directory_size(directory):
+    total_size = 0
+    for dirpath, _, filenames in os.walk(directory):
+        for f in filenames:
+            fp = os.path.join(dirpath, f)
+            if os.path.exists(fp):
+                total_size += os.path.getsize(fp)
+    return total_size
+
 # Event handler for monitoring directory changes
 class DirectoryChangeHandler(FileSystemEventHandler):
     def __init__(self):
         self.first_checkpoint_done = False
-        self.last_modified_files = set()
+        self.previous_size = get_directory_size(directory_to_monitor)
 
     def on_any_event(self, event):
         # Ignore directories or events not related to file changes
         if event.is_directory:
             return
-        
-        # Check if the file was recently modified by our own operation
-        if event.src_path in self.last_modified_files:
-            self.last_modified_files.remove(event.src_path)
-            return
 
-        # Determine which command to execute
-        if not self.first_checkpoint_done:
-            print("Executing initial checkpoint...")
-            execute_command("sudo podman container checkpoint -l -R -P")
-            self.first_checkpoint_done = True
-        else:
-            print("Executing subsequent checkpoint...")
-            execute_command("sudo podman container checkpoint -l -R --with-previous")
-        
-        # After executing the command, mark the changed files
-        self.mark_recently_modified_files()
+        # Calculate the directory size after the event
+        current_size = get_directory_size(directory_to_monitor)
 
-    def mark_recently_modified_files(self):
-        # List files that have been recently modified by the checkpoint operation
-        for root, _, files in os.walk(directory_to_monitor):
-            for file in files:
-                filepath = os.path.join(root, file)
-                self.last_modified_files.add(filepath)
+        # Check if there was a memory change
+        if current_size != self.previous_size:
+            size_change = current_size - self.previous_size
+            self.previous_size = current_size
+
+            if size_change > 0:
+                print(f"Memory increased by {size_change} bytes.")
+            elif size_change < 0:
+                print(f"Memory decreased by {-size_change} bytes.")
+            else:
+                print("No memory change detected.")
+
+            # Perform the appropriate checkpoint
+            if not self.first_checkpoint_done:
+                print("Executing initial checkpoint...")
+                execute_command("sudo podman container checkpoint -l -R -P")
+                self.first_checkpoint_done = True
+            else:
+                print("Executing subsequent checkpoint...")
+                execute_command("sudo podman container checkpoint -l -R --with-previous")
 
 # Directory to monitor
 directory_to_monitor = "/var/lib/containers/storage/overlay"
