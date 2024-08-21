@@ -1,0 +1,10 @@
+sudo podman run -d --name source2 ubuntu:latest tail -f /dev/null
+
+sudo podman exec -it source2 /bin/bash
+
+sudo podman container checkpoint -l -R -P
+
+sudo podman container checkpoint -l -R --with-previous
+
+
+sudo podman container checkpoint -R --pre-checkpoint -e="/home/rohan/Desktop/Precopy migration/checkpoints/predump1.tar.gz" Container_Name
