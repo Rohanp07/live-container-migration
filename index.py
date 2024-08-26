@@ -2,8 +2,8 @@ import subprocess
 import os
 import signal
 
-# Global variable to store the migration process PID
-migration_process_pid = None
+# Global variable to store the migration process
+migration_process = None
 
 def clear_terminal():
     """Clear the terminal screen."""
@@ -15,8 +15,8 @@ def show_menu():
     print("1. Show running Containers (sudo podman ps)")
     print("2. Show all Containers (sudo podman ps -a)")
     print("3. Migrate a container")
-    print("4. Restore")
-    print("5. Exit")
+    # print("4. Restore")
+    print("4. Exit")
 
 def run_command(command):
     """Run a command and display the output in the current terminal."""
@@ -25,19 +25,9 @@ def run_command(command):
     input("\nPress any key to return to the menu...")
     clear_terminal()
 
-def run_in_terminal(command):
-    """Open a new terminal window and run a command."""
-    global migration_process_pid
-    process = subprocess.Popen(
-        f'gnome-terminal -- bash -c "{command}; exec bash"',
-        shell=True,
-        preexec_fn=os.setsid  # To allow sending signals to the process group
-    )
-    migration_process_pid = process.pid
-
 def migrate_container():
     """Migrate a selected container."""
-    global migration_process_pid
+    global migration_process
     
     # Show running containers
     clear_terminal()
@@ -46,30 +36,41 @@ def migrate_container():
     # Ask for container ID or name
     container_name = input("\nEnter the container ID or name to migrate: ")
     
-    # Start the migration process in a new terminal
+    # Start the migration process in the background and capture output
     clear_terminal()
-    print(f"Starting migration for container '{container_name}' in a new terminal.")
-    run_in_terminal(f"python3 /home/rohan/Desktop/live-container-migration/migrror.py {container_name}")
+    print(f"Starting migration for container '{container_name}' in the background.")
     
-    # Provide an option to stop the migration from the main terminal
-    stop_migration_process = input(f"\nPress 'S' to stop the migration process or any other key to return to the menu: ").strip().lower()
-    if stop_migration_process == 's':
-        clear_terminal()
+    migration_process = subprocess.Popen(
+        ["python3", "/home/rohan/Desktop/live-container-migration/migrror.py", container_name],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True
+    )
+    
+    # Monitor progress
+    try:
+        while True:
+            output = migration_process.stdout.readline()
+            if output == "" and migration_process.poll() is not None:
+                break
+            if output:
+                print(output.strip())
+    except KeyboardInterrupt:
         stop_migration()
-    else:
-        print("Returning to the menu.")
+
     input("\nPress any key to return to the menu...")
     clear_terminal()
 
 def stop_migration():
     """Stop the migration process."""
-    global migration_process_pid
-    if migration_process_pid:
+    global migration_process
+    if migration_process:
+        migration_process.terminate()  # Send a termination signal to the process
         try:
-            os.killpg(os.getpgid(migration_process_pid), signal.SIGTERM)  # Kill the process group
+            migration_process.wait(timeout=10)  # Wait up to 10 seconds for the process to terminate
             print("Migration process has been stopped.")
-        except Exception as e:
-            print(f"Failed to stop migration process: {e}")
+        except subprocess.TimeoutExpired:
+            print("Failed to stop migration process within the timeout period.")
     else:
         print("No migration process is running.")
 
@@ -88,11 +89,11 @@ def main():
         elif choice == '3':
             # Migrate a container
             migrate_container()
+        # elif choice == '4':
+        #     # Restore (replace with the path to your restore script or command)
+        #     script_path = "/path/to/restore_script.py"
+        #     subprocess.Popen(["python3", script_path], shell=True)
         elif choice == '4':
-            # Restore (replace with the path to your restore script or command)
-            script_path = "/path/to/restore_script.py"
-            run_in_terminal(f"python3 \"{script_path}\"")
-        elif choice == '5':
             # Exit the program
             print("Exiting...")
             break

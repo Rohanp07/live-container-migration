@@ -29,17 +29,17 @@ def append_checkpoint_data_to_csv(filename, time_taken, cpu_usage, memory_change
     file_exists = os.path.isfile(filename)
     
     with open(filename, 'a', newline='') as csvfile:
-        fieldnames = ['Time Taken (ms)', 'CPU Usage (%)', 'Dirty Memory (bytes)', 'Container Size (bytes)']
+        fieldnames = ['Time Taken (s)', 'CPU Usage (%)', 'Memory Change (bytes)', 'Total Size (bytes)']
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
 
         if not file_exists:
             writer.writeheader()  # Write header only once when file is created
 
         writer.writerow({
-            'Time Taken (ms)': time_taken,
+            'Time Taken (s)': time_taken,
             'CPU Usage (%)': cpu_usage,
-            'Dirty Memory (bytes)': memory_change,
-            'Container Size (bytes)': total_size
+            'Memory Change (bytes)': memory_change,
+            'Total Size (bytes)': total_size
         })
 
 # Event handler for monitoring directory changes
@@ -66,17 +66,18 @@ class DirectoryChangeHandler(FileSystemEventHandler):
             else:
                 print("No memory change detected.")
 
+            start_time = time.time()
             if not self.first_checkpoint_done:
                 print("Executing initial checkpoint...")
                 execute_command(f"sudo podman container checkpoint {self.container_name} -R -P")
                 self.first_checkpoint_done = True
-                time_taken = 0  # Time taken for the initial checkpoint is set to 0
             else:
                 print("Executing subsequent checkpoint...")
-                start_time = time.time()
                 execute_command(f"sudo podman container checkpoint {self.container_name} -R --with-previous")
-                end_time = time.time()
-                time_taken = (end_time - start_time) * 1000  # Calculate time taken for checkpoint
+            end_time = time.time()
+
+            # Calculate time taken for checkpoint
+            time_taken = end_time - start_time
 
             # Get CPU usage
             cpu_usage = psutil.cpu_percent(interval=1)
@@ -85,7 +86,7 @@ class DirectoryChangeHandler(FileSystemEventHandler):
             total_size = current_size
 
             # Append data to CSV
-            append_checkpoint_data_to_csv('checkpoint_data.csv', time_taken, cpu_usage, abs(size_change), total_size)
+            append_checkpoint_data_to_csv('checkpoint_data.csv', time_taken, cpu_usage, size_change, total_size)
 
 if len(sys.argv) != 2:
     print("Usage: python3 migrror.py <container_name>")

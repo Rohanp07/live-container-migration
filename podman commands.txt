@@ -1,6 +1,6 @@
-sudo podman run -d --name source2 ubuntu:latest tail -f /dev/null
+sudo podman run -d --name source ubuntu:latest tail -f /dev/null
 
-sudo podman exec -it source2 /bin/bash
+sudo podman exec -it source /bin/bash
 
 sudo podman container checkpoint -l -R -P
 
