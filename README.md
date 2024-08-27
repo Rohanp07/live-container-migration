@@ -38,3 +38,32 @@ Ensure CRIU has the necessary permissions by running:
 ```bash
 sudo setcap cap_sys_admin+ep $(which criu)
 ```
+
+
+### 5. Run the code using:
+```bash
+sudo python3 ./index.py
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
